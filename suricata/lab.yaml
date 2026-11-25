@@ -1,0 +1,45 @@
+%YAML 1.1
+---
+# home-soc-lab overrides, loaded on top of the image's default
+# /etc/suricata/suricata.yaml with "--include". Mounted at /lab, outside
+# /etc/suricata, because the image entrypoint chowns /etc/suricata and a
+# read-only mount there makes it fail.
+
+# NOTE: an included file REPLACES whole top-level sections of the default
+# config. Only sections that are meant to be replaced entirely belong here.
+# HOME_NET is therefore set with --set in start.sh (from LAB_SUBNET), not in a
+# "vars:" block, which would wipe HTTP_SERVERS, SSH_PORTS and the other
+# variables the ET rules need.
+
+# Capture on the lab network's Linux bridge. The bridge name is fixed in
+# docker-compose.yml (networks.lab.driver_opts).
+af-packet:
+  - interface: br-soclab
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+  - interface: default
+
+# Alerts only. The default config logs ~30 event types (flows, DNS, TLS,
+# stats, ...), which would flood Wazuh. Each alert still carries the HTTP
+# metadata and a printable payload for triage.
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      community-id: yes
+      types:
+        - alert:
+            payload: no
+            payload-printable: yes
+            packet: no
+            metadata: yes
+            http-body-printable: yes
+            tagged-packets: no
+
+# ET Open (downloaded by suricata-update) plus the lab's own rules.
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+  - /lab/rules/local.rules

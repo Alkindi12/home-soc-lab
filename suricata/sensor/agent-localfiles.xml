@@ -1,0 +1,9 @@
+
+<!-- home-soc-lab: Suricata alerts. Decoded by Wazuh's built-in JSON decoder
+     and matched by its Suricata rules (86600-86699). -->
+<ossec_config>
+  <localfile>
+    <log_format>json</log_format>
+    <location>/var/log/suricata/eve.json</location>
+  </localfile>
+</ossec_config>

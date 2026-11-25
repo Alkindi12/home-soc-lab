@@ -2,7 +2,7 @@
 # Services are added stage by stage:
 #   Stage 1: wazuh.manager, wazuh.indexer, wazuh.dashboard
 #   Stage 2: victims with Wazuh agents on the isolated "lab" network
-#   Stage 3: Suricata on the lab network
+#   Stage 3: Suricata watching the lab network, alerts shipped to Wazuh
 #
 # Based on the official wazuh-docker single-node deployment (v4.14.10).
 # Run ./scripts/setup.sh once before the first `docker compose up -d`.
@@ -175,10 +175,61 @@ services:
     depends_on:
       - wazuh.manager
 
+  # ---------------------------------------------------------------- Stage 3
+  # Network IDS. Suricata uses the host network namespace so it can capture
+  # on the lab bridge (br-soclab) and see traffic between all lab containers.
+  # It listens on no ports. Its alerts go to a shared volume that the
+  # nids-sensor agent (on the lab network) ships to the Wazuh manager.
+
+  suricata:
+    image: jasonish/suricata:8.0.8
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      SURICATA_INTERFACE: br-soclab
+      LAB_SUBNET: ${LAB_SUBNET}
+    entrypoint: ["/lab/start.sh"]
+    volumes:
+      - ./suricata/start.sh:/lab/start.sh:ro
+      - ./suricata/lab.yaml:/lab/lab.yaml:ro
+      - ./suricata/rules/local.rules:/lab/rules/local.rules:ro
+      - suricata-rules:/var/lib/suricata
+      - suricata-logs:/var/log/suricata
+    depends_on:
+      # the lab network (and its bridge) must exist before capture starts
+      - victim-web
+
+  nids-sensor:
+    build:
+      context: ./suricata/sensor
+      additional_contexts:
+        common: ./victims/common
+      args:
+        WAZUH_AGENT_VERSION: ${WAZUH_VERSION}
+    image: home-soc-lab/nids-sensor:${WAZUH_VERSION}
+    hostname: nids-sensor
+    restart: unless-stopped
+    volumes:
+      - suricata-logs:/var/log/suricata:ro
+    secrets:
+      - wazuh_enrollment
+    networks:
+      - lab
+    depends_on:
+      - suricata
+      - wazuh.manager
+
 networks:
   lab:
     # internal: no route to the internet, and Docker refuses to publish ports
     internal: true
+    driver_opts:
+      # fixed bridge name so Suricata knows where to capture
+      com.docker.network.bridge.name: br-soclab
     ipam:
       config:
         - subnet: ${LAB_SUBNET:?set LAB_SUBNET in .env}
@@ -204,3 +255,5 @@ volumes:
   wazuh-dashboard-config:
   wazuh-dashboard-custom:
   victim-db-data:
+  suricata-rules:
+  suricata-logs:

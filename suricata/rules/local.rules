@@ -1,0 +1,7 @@
+# home-soc-lab local Suricata rules. SIDs 9000000-9099999 are reserved here.
+# Lab-specific detections are added in Stage 4.
+
+# Pipeline self-test: a harmless request for this URI proves that
+# capture -> Suricata -> eve.json -> nids-sensor agent -> Wazuh all work.
+#   docker compose exec victim-ssh curl -s http://victim-web/soc-lab-ids-test
+alert http $HOME_NET any -> $HOME_NET any (msg:"HOME-SOC-LAB IDS pipeline self-test"; flow:established,to_server; http.uri; content:"/soc-lab-ids-test"; classtype:misc-activity; sid:9000001; rev:1;)
