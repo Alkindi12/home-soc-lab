@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# One-time setup for the Wazuh core (Stage 1). Safe to re-run.
-#   1. Creates .env with random strong passwords if it does not exist yet.
-#   2. Renders the two secret-bearing Wazuh config files from .env:
+# Setup for the lab. Safe to re-run.
+#   1. Creates .env with random strong passwords, or adds keys new stages need.
+#   2. Renders the secret-bearing Wazuh config files from .env:
 #        wazuh/config/wazuh_indexer/internal_users.yml  (bcrypt hashes)
 #        wazuh/config/wazuh_dashboard/wazuh.yml         (API credentials)
+#        wazuh/config/wazuh_cluster/authd.pass          (agent enrollment)
 #   3. Generates the TLS certificates if they are missing.
 # Everything it writes is gitignored.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [ ! -f .env ]; then
-  echo "[setup] Creating .env with generated passwords"
-  python3 - <<'PY'
-import secrets, string
+# Creates .env from .env.example, or adds keys that a later stage introduced
+# to an existing .env. Existing values are never changed. Every "change-me"
+# becomes a random password.
+python3 - <<'PY'
+import os, secrets, string
 
 def strong(n=24):
     # Wazuh API policy: upper, lower, digit and symbol. Symbols avoid $ " \
@@ -26,22 +28,39 @@ def strong(n=24):
                 and any(c.isdigit() for c in p) and any(c in sym for c in p)):
             return p
 
-out = []
-for line in open(".env.example"):
-    key = line.split("=", 1)[0].strip()
-    if line.rstrip().endswith("=change-me"):
-        line = f"{key}={strong()}\n"
-    out.append(line)
-open(".env", "w").writelines(out)
+def key_of(line):
+    line = line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        return None
+    return line.split("=", 1)[0]
+
+def fill(line):
+    k = key_of(line)
+    if k and line.rstrip().endswith("=change-me"):
+        return f"{k}={strong()}\n"
+    return line
+
+example = open(".env.example").readlines()
+if not os.path.exists(".env"):
+    print("[setup] Creating .env with generated passwords")
+    with open(".env", "w") as f:
+        f.writelines(fill(l) for l in example)
+else:
+    have = {key_of(l) for l in open(".env")}
+    missing = [l for l in example if key_of(l) and key_of(l) not in have]
+    if missing:
+        print("[setup] Adding new keys to .env: " + ", ".join(key_of(l) for l in missing))
+        with open(".env", "a") as f:
+            f.write("\n# Added by setup.sh\n")
+            f.writelines(fill(l) for l in missing)
+    else:
+        print("[setup] .env is up to date, keeping it")
+os.chmod(".env", 0o600)
 PY
-  chmod 600 .env
-else
-  echo "[setup] .env exists, keeping it"
-fi
 
 set -a; . ./.env; set +a
 
-for v in WAZUH_VERSION INDEXER_USERNAME INDEXER_PASSWORD API_USERNAME API_PASSWORD DASHBOARD_USERNAME DASHBOARD_PASSWORD; do
+for v in WAZUH_VERSION INDEXER_USERNAME INDEXER_PASSWORD API_USERNAME API_PASSWORD DASHBOARD_USERNAME DASHBOARD_PASSWORD AGENT_ENROLLMENT_PASSWORD; do
   val="${!v:-}"
   if [ -z "$val" ] || [ "$val" = "change-me" ]; then
     echo "[setup] ERROR: $v is empty or still 'change-me' in .env" >&2
@@ -49,7 +68,7 @@ for v in WAZUH_VERSION INDEXER_USERNAME INDEXER_PASSWORD API_USERNAME API_PASSWO
   fi
 done
 
-echo "[setup] Rendering internal_users.yml and wazuh.yml from .env"
+echo "[setup] Rendering internal_users.yml, wazuh.yml and authd.pass from .env"
 python3 - <<'PY'
 import os, bcrypt
 
@@ -99,6 +118,13 @@ path = "wazuh/config/wazuh_dashboard/wazuh.yml"
 with open(path, "w") as f:
     f.write(wazuh_yml)
 os.chmod(path, 0o644)
+
+# Agent enrollment password: copied into the manager at start, and given to
+# the victims as the Docker secret "wazuh_enrollment".
+path = "wazuh/config/wazuh_cluster/authd.pass"
+with open(path, "w") as f:
+    f.write(e["AGENT_ENROLLMENT_PASSWORD"] + "\n")
+os.chmod(path, 0o600)
 PY
 
 # The generator leaves this directory root-owned (mode 500), so a normal user

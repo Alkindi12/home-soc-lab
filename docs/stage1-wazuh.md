@@ -43,7 +43,7 @@ The indexer heap stays at 1 GB (`-Xms1g -Xmx1g`) because the host has 7.5 GiB of
 | `wazuh/config/certs.yml` | yes | Node names for the certificates |
 | `wazuh/config/wazuh_indexer/wazuh.indexer.yml` | yes | OpenSearch config (upstream, unchanged) |
 | `wazuh/config/wazuh_dashboard/opensearch_dashboards.yml` | yes | Dashboard config (upstream, unchanged) |
-| `wazuh/config/wazuh_cluster/wazuh_manager.conf` | yes | Manager `ossec.conf` (upstream, unchanged; custom rules come in Stage 4) |
+| `wazuh/config/wazuh_cluster/wazuh_manager.conf` | yes | Manager `ossec.conf` (upstream; Stage 2 adds the enrollment password and `<force>` settings, marked `home-soc-lab`) |
 | `.env` | **no** | Version and passwords |
 | `wazuh/config/wazuh_indexer/internal_users.yml` | **no** | bcrypt hashes of the indexer users |
 | `wazuh/config/wazuh_dashboard/wazuh.yml` | **no** | Dashboard's Wazuh API credentials |

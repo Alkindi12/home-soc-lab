@@ -1,0 +1,10 @@
+<!-- syslog, not mysql_log: the mysql_log reader only understands the legacy
+     MySQL format. Decoded on the manager by wazuh/decoders/mariadb_decoders.xml -->
+
+<!-- home-soc-lab: logs collected on victim-db -->
+<ossec_config>
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/mysql/error.log</location>
+  </localfile>
+</ossec_config>

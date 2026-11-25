@@ -30,3 +30,4 @@ hydra.restore
 # Rendered from .env by scripts/setup.sh (contain secrets)
 wazuh/config/wazuh_indexer/internal_users.yml
 wazuh/config/wazuh_dashboard/wazuh.yml
+wazuh/config/wazuh_cluster/authd.pass

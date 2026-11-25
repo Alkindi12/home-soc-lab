@@ -1,0 +1,22 @@
+<!--
+  home-soc-lab: MariaDB 11 error log decoder.
+
+  Wazuh's built-in mysql_log decoder only matches the legacy
+  "MySQL log: 060516 22:38:46 ..." format. MariaDB 11 writes:
+
+    2026-11-25  7:51:16 3 [Warning] Access denied for user 'bob'@'172.30.0.5' (using password: YES)
+
+  This decoder has the SAME NAME as the built-in one, so Wazuh treats it as a
+  sibling and the stock MySQL rules (50100-50199, e.g. 50106
+  "MySQL: authentication failure") apply to MariaDB events unchanged.
+  The agent ships the file with log_format "syslog" (see victims/db).
+-->
+<decoder name="mysql_log">
+  <prematch type="pcre2">^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}:\d{2} \d+ \[(?:Note|Warning|ERROR)\] </prematch>
+</decoder>
+
+<decoder name="mariadb-access-denied">
+  <parent>mysql_log</parent>
+  <regex type="pcre2">Access denied for user '([^']*)'@'([^']*)'</regex>
+  <order>srcuser,srcip</order>
+</decoder>

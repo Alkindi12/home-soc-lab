@@ -1,0 +1,7 @@
+[mariadbd]
+# Write the error log to a file the Wazuh agent can read.
+log_error = /var/log/mysql/error.log
+# Level 2+ logs failed logins ("Access denied for user ...").
+log_warnings = 2
+# Log client IP addresses, not reverse-DNS names (Wazuh extracts srcip).
+skip_name_resolve = ON
