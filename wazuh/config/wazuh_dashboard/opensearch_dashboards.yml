@@ -11,6 +11,10 @@ server.ssl.certificate: "/usr/share/wazuh-dashboard/certs/wazuh-dashboard.pem"
 opensearch.ssl.certificateAuthorities: ["/usr/share/wazuh-dashboard/certs/root-ca.pem"]
 uiSettings.overrides.defaultRoute: /app/wz-home
 # Session expiration settings
-opensearch_security.cookie.ttl: 900000
-opensearch_security.session.ttl: 900000
+# home-soc-lab: upstream logs out after 15 minutes idle (900000 ms), which
+# interrupts long attack runs and reviews. 8 hours (one working day) here;
+# the dashboard only listens on 127.0.0.1. keepalive extends the session
+# while the dashboard is in use.
+opensearch_security.cookie.ttl: 28800000
+opensearch_security.session.ttl: 28800000
 opensearch_security.session.keepalive: true

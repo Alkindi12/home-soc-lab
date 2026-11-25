@@ -30,6 +30,7 @@ private CA created by `scripts/setup.sh`.
 | Ports published on all interfaces | Bound to `127.0.0.1` | Nothing on the LAN can reach the SIEM |
 | Agent ports 1514/1515 and syslog 514/udp published | Not published | Lab agents join over the Docker network (Stage 2) |
 | `restart: always` | `restart: unless-stopped` | A stopped lab stays stopped on a laptop |
+| Dashboard logs out after 15 min idle | 8 hours (`opensearch_dashboards.yml`) | Long attack runs and reviews; dashboard is localhost-only |
 | Credentials hard-coded in compose and config | Read from `.env`; secret-bearing config rendered by `setup.sh` and gitignored | No secrets in git |
 
 The indexer heap stays at 1 GB (`-Xms1g -Xmx1g`) because the host has 7.5 GiB of RAM.
@@ -42,7 +43,7 @@ The indexer heap stays at 1 GB (`-Xms1g -Xmx1g`) because the host has 7.5 GiB of
 | `wazuh/generate-indexer-certs.yml` | yes | One-shot certificate generator |
 | `wazuh/config/certs.yml` | yes | Node names for the certificates |
 | `wazuh/config/wazuh_indexer/wazuh.indexer.yml` | yes | OpenSearch config (upstream, unchanged) |
-| `wazuh/config/wazuh_dashboard/opensearch_dashboards.yml` | yes | Dashboard config (upstream, unchanged) |
+| `wazuh/config/wazuh_dashboard/opensearch_dashboards.yml` | yes | Dashboard config (upstream; session lifetime raised to 8 hours) |
 | `wazuh/config/wazuh_cluster/wazuh_manager.conf` | yes | Manager `ossec.conf` (upstream; Stage 2 adds the enrollment password and `<force>` settings, marked `home-soc-lab`) |
 | `.env` | **no** | Version and passwords |
 | `wazuh/config/wazuh_indexer/internal_users.yml` | **no** | bcrypt hashes of the indexer users |
@@ -90,6 +91,14 @@ docker compose down           # remove containers, keep data volumes
   existing install: the indexer security index and the API user are only
   initialised on first start. For a lab, the simplest reset is
   `docker compose down -v`, then `./scripts/setup.sh` and `docker compose up -d`.
+- **Dashboard stuck on "not ready yet", logs show `Unable to retrieve
+  version information`**: the containers were created with passwords that
+  do not match the indexer. Docker Compose gives **shell environment
+  variables priority over `.env`**: a script that ran `set -a; . ./.env`
+  for another copy of the lab, then `docker compose up`, injects that
+  copy's passwords. Recreate from a clean shell:
+  `docker compose up -d --force-recreate` (found during the Stage 5
+  fresh-clone test).
 - **Regenerating certificates**: `sudo rm -rf wazuh/config/wazuh_indexer_ssl_certs`,
   then `./scripts/setup.sh`.
 - **`wazuh.yml` host id**: the dashboard image appends a second, broken
