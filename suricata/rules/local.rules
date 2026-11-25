@@ -5,3 +5,10 @@
 # capture -> Suricata -> eve.json -> nids-sensor agent -> Wazuh all work.
 #   docker compose exec victim-ssh curl -s http://victim-web/soc-lab-ids-test
 alert http $HOME_NET any -> $HOME_NET any (msg:"HOME-SOC-LAB IDS pipeline self-test"; flow:established,to_server; http.uri; content:"/soc-lab-ids-test"; classtype:misc-activity; sid:9000001; rev:1;)
+
+# Attack 1 (T1046): port scan. A SYN scan makes every CLOSED port answer with
+# RST/ACK. Counting those replies per destination finds the scanner without
+# counting normal traffic: busy but legitimate clients (sqlmap, browsers,
+# hydra) talk to OPEN ports and get no RSTs. The scanner is the destination
+# of these packets. One alert per scanner per 10 seconds.
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"HOME-SOC-LAB Port scan: many closed-port RST replies to one host"; flow:stateless; flags:RA,12; threshold: type both, track by_dst, count 50, seconds 10; classtype:attempted-recon; sid:9000010; rev:1;)

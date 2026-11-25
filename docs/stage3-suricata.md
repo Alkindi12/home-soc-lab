@@ -33,7 +33,7 @@ reads Suricata's log volume read-only.
 | File | Purpose |
 |------|---------|
 | `suricata/lab.yaml` | Loaded with `--include` on top of the image's default config: capture interface, alerts-only EVE output, rule files |
-| `suricata/start.sh` | Updates ET Open (at most once a day), then starts Suricata with `HOME_NET` set from `LAB_SUBNET` |
+| `suricata/start.sh` | Updates ET Open (at most once a day), then starts Suricata with `HOME_NET` = `LAB_SUBNET` minus `ATTACKER_IP` (Stage 4) |
 | `suricata/rules/local.rules` | Lab rules, SIDs 9000000-9099999 |
 | `suricata/sensor/` | The `nids-sensor` agent image |
 
@@ -76,10 +76,18 @@ Each HTTP test appears **twice**: once for `victim-ssh → victim-web` (nginx)
 and once for `victim-web → juice-shop`, because the proxy opens its own
 connection. That is correct, not double capture.
 
-## Known limitations
+## Changed in Stage 4
 
-- Wazuh's stock rule 86601 gives **every** Suricata alert level 3, whatever
-  its Suricata severity. Stage 4 adds rules that map severity to Wazuh levels.
+- **`HOME_NET` no longer contains the attacker.** It is
+  `[LAB_SUBNET,!ATTACKER_IP]`. With the attacker inside `HOME_NET`, ET
+  inbound rules (`$EXTERNAL_NET -> $HOME_NET`) could not match, and sqlmap
+  raised no Suricata alert at all. A side effect: the nginx → Juice Shop leg
+  is now HOME → HOME and no longer doubles inbound alerts.
+- **Severity mapping:** stock rule 86601 gave every Suricata alert level 3.
+  Rules 100101/100102 now map severity 1 → 10 and 2 → 7.
+- **Port-scan rule** SID 9000010 in `local.rules` (see report 01).
+
+## Known limitations
 - `HOME_NET` comes from `LAB_SUBNET`; the capture interface name is fixed. If
   you change the subnet in `.env`, recreate the stack (`docker compose down`
   then `up -d`).

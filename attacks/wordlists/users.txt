@@ -1,0 +1,11 @@
+root
+admin
+administrator
+test
+user
+ubuntu
+debian
+guest
+oracle
+postgres
+labuser

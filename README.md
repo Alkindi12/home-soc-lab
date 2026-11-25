@@ -66,15 +66,29 @@ All published ports listen on `127.0.0.1` only. See
 [docs/stage1-wazuh.md](docs/stage1-wazuh.md) for what runs, how it was
 verified, and troubleshooting, and [docs/stage2-victims.md](docs/stage2-victims.md)
 for the victims, their agents and the isolated lab network, and
-[docs/stage3-suricata.md](docs/stage3-suricata.md) for network detection.
+[docs/stage3-suricata.md](docs/stage3-suricata.md) for network detection, and
+[docs/stage4-attacks.md](docs/stage4-attacks.md) for the attacks and custom rules.
+
+## Running the attacks
+
+The attacker only starts on demand and lives on the isolated lab network:
+
+```bash
+docker compose --profile attack build attacker
+docker compose --profile attack run --rm attacker /attacks/run-all.sh   # all six, ~10 min
+```
+
+Results per attack, with MITRE ATT&CK mapping, the alerts produced, false
+positives and analyst response: [reports/](reports/README.md).
 
 ## Repository layout
 
 | Path           | Contents |
 |----------------|----------|
-| `wazuh/rules/` | Custom Wazuh detection rules |
+| `wazuh/rules/` | Custom Wazuh detection rules (100000-100999) |
 | `suricata/`    | Suricata configuration, local rules and the `nids-sensor` agent image |
-| `attacks/`     | Attack commands and scripts used against the lab |
+| `attacker/`    | Attacker image (Debian tools, lab network only) |
+| `attacks/`     | Attack scripts and wordlists |
 | `reports/`     | Per-attack detection write-ups |
 | `wazuh/config/` | Wazuh manager, indexer and dashboard configuration |
 | `wazuh/decoders/` | Custom Wazuh decoders |
@@ -88,5 +102,5 @@ for the victims, their agents and the isolated lab network, and
 - [x] Stage 1: Wazuh SIEM core (manager, indexer, dashboard)
 - [x] Stage 2: Victim containers with Wazuh agents
 - [x] Stage 3: Suricata network detection forwarded into Wazuh
-- [ ] Stage 4: Attacks, custom rules, and MITRE ATT&CK mapping
+- [x] Stage 4: Attacks, custom rules, and MITRE ATT&CK mapping
 - [ ] Stage 5: Documentation and v1.0 release

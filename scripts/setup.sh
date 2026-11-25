@@ -137,4 +137,6 @@ else
   docker compose -f wazuh/generate-indexer-certs.yml run --rm generator
 fi
 
+mkdir -p attacks/output   # attacker output (gitignored), owned by you
+
 echo "[setup] Done. Start the stack with: docker compose up -d"

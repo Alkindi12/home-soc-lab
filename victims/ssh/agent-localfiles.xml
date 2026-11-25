@@ -9,4 +9,9 @@
     <log_format>syslog</log_format>
     <location>/var/log/syslog</location>
   </localfile>
+  <!-- File integrity monitoring: user home directories in real time, so a
+       planted ~/.ssh/authorized_keys is reported within seconds (Stage 4). -->
+  <syscheck>
+    <directories realtime="yes" report_changes="yes" check_all="yes">/home</directories>
+  </syscheck>
 </ossec_config>

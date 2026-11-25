@@ -49,7 +49,14 @@ targets of the brute-force attacks and exist only inside the lab network.
   victims as the Docker secret `wazuh_enrollment`. It is never baked into an
   image.
 - The manager replaces an agent with the same name immediately (`<force>`
-  with zero wait), so rebuilding a victim does not leave it locked out for an hour.
+  with no waiting conditions), so a rebuilt victim is not locked out.
+  **Corrected in Stage 4:** the first version kept the condition
+  `disconnected_time`, which only replaces an agent whose old entry is
+  already *disconnected*. A recreated container enrolls while its old entry
+  still looks Active (the manager needs minutes to notice), so it was refused
+  with `Duplicate agent name` and silently sent nothing. The Stage 2 tests
+  missed it because the manager was recreated at the same time, which
+  disconnects every agent. `disconnected_time` is now disabled.
 
 ## Known limitations
 
@@ -109,6 +116,8 @@ docker compose build victim-db && docker compose up -d victim-db
 
 ## Troubleshooting
 
+- **Victim log shows `Duplicate agent name`**: the manager is running an
+  old `ossec.conf`. Recreate it (see the next point), then the victim.
 - **Agent shows `Never connected` or `Disconnected`**: check
   `docker compose exec <victim> tail /var/ossec/logs/ossec.log`. An
   `Invalid password` error means `authd.pass` and the secret differ: re-run

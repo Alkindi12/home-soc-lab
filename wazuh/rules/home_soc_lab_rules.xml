@@ -1,0 +1,233 @@
+<!--
+  home-soc-lab custom Wazuh rules (Stage 4). Rule IDs 100000-100999.
+
+  Layout:
+    1000xx  noise tuning
+    1001xx  Suricata severity -> Wazuh level
+    1002xx  one block per attack in attacks/ (see reports/ for each):
+            10021x scan, 10022x web discovery, 10023x SQL injection,
+            10024x SSH brute force, 10025x DB brute force, 10026x persistence
+
+  Every attack rule carries a MITRE ATT&CK technique. Test a rule with:
+    docker compose exec wazuh.manager /var/ossec/bin/wazuh-logtest
+  After editing this file, RECREATE the manager container: a plain restart
+  does not re-copy mounted config (see docs/stage4-attacks.md).
+-->
+
+<!-- ===================================================== 1000xx noise tuning -->
+<group name="home_soc_lab,sca,">
+
+  <!-- Every SCA check result was an alert: ~1,850 alerts per scan cycle,
+       99% of all alerts, 651 of them "medium". The Configuration Assessment
+       dashboard reads SCA results from the manager's database, not from
+       alerts, so lowering these levels loses nothing there. -->
+  <rule id="19007" level="3" overwrite="yes">
+    <if_sid>19006</if_sid>
+    <field name="sca.check.result">^failed</field>
+    <options>no_full_log</options>
+    <description>$(sca.policy): $(sca.check.title)</description>
+  </rule>
+
+  <rule id="19008" level="0" overwrite="yes">
+    <if_sid>19006</if_sid>
+    <field name="sca.check.result">^passed</field>
+    <options>no_full_log</options>
+    <description>$(sca.policy): $(sca.check.title)</description>
+  </rule>
+
+  <rule id="19009" level="0" overwrite="yes">
+    <if_sid>19006</if_sid>
+    <field name="sca.check.result">^not applicable</field>
+    <options>no_full_log</options>
+    <description>$(sca.policy): $(sca.check.title)</description>
+  </rule>
+
+</group>
+
+<!-- ============================ 1001xx Suricata severity -> Wazuh level -->
+<!-- Stock rule 86601 gives EVERY Suricata alert level 3. Map Suricata's own
+     severity (1 = high, 2 = medium, 3 = low) onto Wazuh levels instead.
+     Severity 3 stays at the stock level 3. -->
+<group name="home_soc_lab,ids,suricata,">
+
+  <rule id="100101" level="10">
+    <if_sid>86601</if_sid>
+    <field name="alert.severity">^1$</field>
+    <description>Suricata high severity: $(alert.signature)</description>
+  </rule>
+
+  <rule id="100102" level="7">
+    <if_sid>86601</if_sid>
+    <field name="alert.severity">^2$</field>
+    <description>Suricata medium severity: $(alert.signature)</description>
+  </rule>
+
+</group>
+
+<!-- ========================== 1002xx attack-specific Suricata detections -->
+<!-- Each rule below is a child of the generic severity rules (100101/100102)
+     as well as of 86601. Wazuh tries sibling rules HIGHEST LEVEL FIRST, not
+     in file order, so a level-6 sibling would never beat the level-10
+     "severity 1" rule. As a child it is evaluated after it and can lower or
+     raise the level. -->
+<group name="home_soc_lab,ids,suricata,">
+
+  <!-- Attack 1: TCP port scan. Suricata SID 9000010 (suricata/rules/local.rules)
+       counts RST/ACK replies (closed ports) sent to one host. The scanner is
+       therefore the DESTINATION of the alerted packets. -->
+  <rule id="100210" level="10">
+    <if_sid>86601,100101,100102</if_sid>
+    <field name="alert.signature_id">^9000010$</field>
+    <description>Port scan from $(dest_ip): lab hosts refused 50+ connections in 10s (e.g. $(src_ip))</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>recon,port_scan,</group>
+  </rule>
+
+  <!-- Attack 3: per-request SQL injection signatures. sqlmap sends one
+       request per payload; at the generic "severity 1 = level 10" mapping
+       that was 1,379 level-10 alerts in 35 seconds. Each request is kept at
+       level 6, and 100233 below raises ONE alert for the campaign. -->
+  <rule id="100232" level="6">
+    <if_sid>86601,100101,100102</if_sid>
+    <field name="alert.signature">SQL Injection|SQL injection</field>
+    <description>Suricata: SQL injection pattern in request from $(src_ip): $(alert.signature)</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>attack,sql_injection,</group>
+  </rule>
+
+  <rule id="100233" level="12" frequency="20" timeframe="60" ignore="300">
+    <if_matched_sid>100232</if_matched_sid>
+    <same_field>src_ip</same_field>
+    <description>Network IDS: SQL injection campaign from $(src_ip) (20+ injection requests in 60s)</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>attack,sql_injection,</group>
+  </rule>
+
+  <!-- Attack 3: sqlmap fingerprint seen on the wire (ET 2008538). -->
+  <rule id="100230" level="10">
+    <if_sid>86601,100101,100102</if_sid>
+    <field name="alert.signature_id">^2008538$</field>
+    <description>sqlmap SQL injection tool used by $(src_ip) against $(dest_ip)</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>attack,sql_injection,</group>
+  </rule>
+
+</group>
+
+<!-- ============================================ 1002xx host detections -->
+<group name="home_soc_lab,">
+
+  <!-- Attack 2: web content discovery. Juice Shop answers unknown paths with
+       200, so the stock 4xx-based scan rule (31151) never fires.
+       Matched by GROUP, not by parent rule: a request first lands on one of
+       31100's 30-odd stock children (e.g. 31108 "simple query", level 0),
+       and a rule hanging off 31100 would never be reached. -->
+  <!-- Per request: low level, and it keeps the "accesslog" group so the
+       rate rule 100221 still counts these requests. -->
+  <rule id="100220" level="5">
+    <if_group>accesslog</if_group>
+    <match>gobuster/|dirbuster|feroxbuster|ffuf/|wfuzz|nikto|dirb/</match>
+    <description>Web content discovery tool user agent from $(srcip)</description>
+    <mitre>
+      <id>T1595.003</id>
+    </mitre>
+    <group>web,accesslog,recon,web_scan,</group>
+  </rule>
+
+  <rule id="100222" level="10" frequency="10" timeframe="60" ignore="120">
+    <if_matched_sid>100220</if_matched_sid>
+    <same_source_ip />
+    <description>Web content discovery: $(srcip) sent 10+ requests with a scanner user agent in 60s</description>
+    <mitre>
+      <id>T1595.003</id>
+    </mitre>
+    <group>web,recon,web_scan,</group>
+  </rule>
+
+  <rule id="100221" level="10" frequency="50" timeframe="10" ignore="60">
+    <if_matched_group>accesslog</if_matched_group>
+    <same_source_ip />
+    <description>Web scan: more than 50 requests in 10 seconds from $(srcip)</description>
+    <mitre>
+      <id>T1595.003</id>
+    </mitre>
+    <group>web,recon,web_scan,</group>
+  </rule>
+
+  <!-- Attack 3: the stock correlation 31152 maps SQL injection to T1055
+       (Process Injection), which is wrong for a web attack. Re-tag it with
+       T1190 and raise it, since the server kept answering 200. -->
+  <rule id="100231" level="12">
+    <if_sid>31152</if_sid>
+    <description>SQL injection campaign from $(srcip): repeated injection attempts, server answering 200</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>web,attack,sql_injection,</group>
+  </rule>
+
+  <!-- Attack 4: brute force that SUCCEEDED. Stock 40112 already correlates
+       failures followed by a success; this makes it SSH-specific and
+       critical, because the attacker now holds a working account. -->
+  <rule id="100240" level="13">
+    <if_sid>40112</if_sid>
+    <program_name>^sshd</program_name>
+    <description>SSH brute force succeeded: $(srcip) logged in as $(dstuser) after repeated failures</description>
+    <mitre>
+      <id>T1110.001</id>
+      <id>T1078</id>
+    </mitre>
+    <group>authentication_success,brute_force,</group>
+  </rule>
+
+  <!-- Attack 5: database brute force. Each failure is stock rule 50106
+       (decoded by wazuh/decoders/mariadb_decoders.xml); nothing stock
+       correlates them. -->
+  <rule id="100250" level="12" frequency="8" timeframe="60" ignore="120">
+    <if_matched_sid>50106</if_matched_sid>
+    <same_source_ip />
+    <description>Database brute force: 8+ failed MariaDB logins from $(srcip) in 60s (last user: $(srcuser))</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_failures,brute_force,</group>
+  </rule>
+
+  <!-- Attack 6a: SSH key persistence. FIM watches /home in real time
+       (victims/ssh/agent-localfiles.xml). -->
+  <rule id="100260" level="12">
+    <if_sid>550,554</if_sid>
+    <!-- Matched on the event text ("File '/home/x/.ssh/authorized_keys'
+         added|modified"). Neither <field name="file"> nor
+         <field name="syscheck.path"> matched FIM events in this version. -->
+    <match>/.ssh/authorized_keys</match>
+    <!-- The path is in the alert field syscheck.path; $(syscheck.path) does
+         not expand in FIM descriptions, so the text is static. -->
+    <description>SSH authorized_keys created or changed in a user home directory</description>
+    <mitre>
+      <id>T1098.004</id>
+    </mitre>
+    <group>persistence,syscheck,</group>
+  </rule>
+
+  <!-- Attack 6b: credential access through sudo. -->
+  <rule id="100261" level="12">
+    <if_sid>5402,5403</if_sid>
+    <field name="command">/etc/shadow|/etc/gshadow|/etc/sudoers</field>
+    <description>$(srcuser) used sudo to access a credential file: $(command)</description>
+    <mitre>
+      <id>T1548.003</id>
+      <id>T1003.008</id>
+    </mitre>
+    <group>privilege_escalation,credential_access,</group>
+  </rule>
+
+</group>

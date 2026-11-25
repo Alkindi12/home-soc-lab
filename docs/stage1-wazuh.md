@@ -78,6 +78,14 @@ docker compose down           # remove containers, keep data volumes
 
 - **Dashboard says "Wazuh dashboard server is not ready yet"**: the indexer
   is still starting. Wait a minute.
+- **A change to `wazuh_manager.conf`, a decoder or a rule has no effect**:
+  recreate the manager, do not just restart it:
+  `docker compose up -d --force-recreate wazuh.manager`. The image copies
+  mounted config into place during its first-start setup, which deletes its
+  own seed data (`data_tmp`) afterwards. On a plain `restart` that setup
+  fails early (`Error executing command: 'cp -ar /var/ossec/data_tmp/...'`)
+  and never reaches the copy step, so the old config keeps running. Alerts
+  and agent keys live in volumes and survive the recreate.
 - **Changing a password in `.env` after the first start** does not update an
   existing install: the indexer security index and the API user are only
   initialised on first start. For a lab, the simplest reset is
