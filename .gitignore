@@ -26,3 +26,7 @@ hydra.restore
 .idea/
 *.swp
 .DS_Store
+
+# Rendered from .env by scripts/setup.sh (contain secrets)
+wazuh/config/wazuh_indexer/internal_users.yml
+wazuh/config/wazuh_dashboard/wazuh.yml

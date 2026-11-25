@@ -1,0 +1,15 @@
+# One-shot TLS certificate generator (official Wazuh image).
+# Run through ./scripts/setup.sh, which skips it if certificates already exist.
+# Output: wazuh/config/wazuh_indexer_ssl_certs/ (gitignored, never commit)
+name: home-soc-lab-certs
+
+services:
+  generator:
+    image: wazuh/wazuh-certs-generator:0.0.5
+    hostname: wazuh-certs-generator
+    environment:
+      CERT_TOOL_VERSION: "4.14"
+      CERT_TOOL_REPOSITORY: prod
+    volumes:
+      - ./config/wazuh_indexer_ssl_certs/:/certificates/
+      - ./config/certs.yml:/config/certs.yml:ro
