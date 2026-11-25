@@ -13,7 +13,8 @@ cd "$(dirname "$0")/.."
 
 # Creates .env from .env.example, or adds keys that a later stage introduced
 # to an existing .env. Existing values are never changed. Every "change-me"
-# becomes a random password.
+# becomes a random password; every "from-wordlist" a random entry of the
+# attack wordlist (the deliberately weak victim passwords).
 python3 - <<'PY'
 import os, secrets, string
 
@@ -34,10 +35,17 @@ def key_of(line):
         return None
     return line.split("=", 1)[0]
 
+WORDLIST = [w.strip() for w in open("attacks/wordlists/passwords.txt") if w.strip()]
+
 def fill(line):
     k = key_of(line)
     if k and line.rstrip().endswith("=change-me"):
+        if k == "WAZUH_CLUSTER_KEY":
+            return f"{k}={secrets.token_hex(16)}\n"    # 32 hex chars
         return f"{k}={strong()}\n"
+    if k and line.rstrip().endswith("=from-wordlist"):
+        # Deliberately weak victim password: a random wordlist entry
+        return f"{k}={secrets.choice(WORDLIST)}\n"
     return line
 
 example = open(".env.example").readlines()
@@ -60,10 +68,10 @@ PY
 
 set -a; . ./.env; set +a
 
-for v in WAZUH_VERSION INDEXER_USERNAME INDEXER_PASSWORD API_USERNAME API_PASSWORD DASHBOARD_USERNAME DASHBOARD_PASSWORD AGENT_ENROLLMENT_PASSWORD; do
+for v in WAZUH_VERSION INDEXER_USERNAME INDEXER_PASSWORD API_USERNAME API_PASSWORD DASHBOARD_USERNAME DASHBOARD_PASSWORD AGENT_ENROLLMENT_PASSWORD WAZUH_CLUSTER_KEY; do
   val="${!v:-}"
-  if [ -z "$val" ] || [ "$val" = "change-me" ]; then
-    echo "[setup] ERROR: $v is empty or still 'change-me' in .env" >&2
+  if [ -z "$val" ] || [ "$val" = "change-me" ] || [ "$val" = "from-wordlist" ]; then
+    echo "[setup] ERROR: $v is empty or still a placeholder in .env" >&2
     exit 1
   fi
 done

@@ -30,6 +30,8 @@ services:
       SSL_KEY: /etc/ssl/filebeat.key
       API_USERNAME: ${API_USERNAME}
       API_PASSWORD: ${API_PASSWORD:?set API_PASSWORD in .env}
+      # Substituted into ossec.conf by the image's init script
+      WAZUH_CLUSTER_KEY: ${WAZUH_CLUSTER_KEY:?set WAZUH_CLUSTER_KEY in .env}
     volumes:
       - wazuh_api_configuration:/var/ossec/api/configuration
       - wazuh_etc:/var/ossec/etc

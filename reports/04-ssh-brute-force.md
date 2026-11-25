@@ -11,8 +11,9 @@
 
 ## What the attacker got
 
-`labuser` and its password, a word from the top of every wordlist. Then a
-shell:
+The password of `labuser`, a common word from the attack wordlist
+(`setup.sh` picks one at random, so it is not written in the repository).
+Then a shell:
 
 ```
 uid=1000(labuser) gid=1000(labuser) groups=1000(labuser),27(sudo)

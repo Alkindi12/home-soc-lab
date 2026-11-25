@@ -11,8 +11,8 @@
 
 ## What the attacker got
 
-The MariaDB `root` password in about a second, then full
-database access:
+The MariaDB `root` password, a common word from the wordlist, in about a
+second, then full database access:
 
 ```
 information_schema, mysql, performance_schema, shop, sys
@@ -66,7 +66,7 @@ Fix ([decoders](../wazuh/decoders/mariadb_decoders.xml), [rules](../wazuh/rules/
 
 Both per-failure rules carry the group `mariadb_auth_failure`, and the
 brute-force rule 100250 now counts that group instead of rule 50106.
-Re-run at 12:07 UTC: **100250 (level 12)** plus 25 × 100251 (level 9), each
+Re-run after the fix: **100250 (level 12)** plus 25 × 100251 (level 9), each
 with `srcuser=root` and `srcip=172.30.0.100`.
 
 ## Detection gap: success is invisible
