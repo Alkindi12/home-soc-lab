@@ -123,6 +123,8 @@ services:
     environment:
       VICTIM_SSH_USER: ${VICTIM_SSH_USER:?set VICTIM_SSH_USER in .env}
       VICTIM_SSH_PASSWORD: ${VICTIM_SSH_PASSWORD:?set VICTIM_SSH_PASSWORD in .env}
+      ADMIN_SSH_USER: ${ADMIN_SSH_USER:-}
+      ADMIN_SSH_PASSWORD: ${ADMIN_SSH_PASSWORD:-}
     secrets:
       - wazuh_enrollment
     networks:
@@ -247,6 +249,32 @@ services:
     networks:
       lab:
         ipv4_address: ${ATTACKER_IP:?set ATTACKER_IP in .env}
+
+  # Normal activity baseline. A workstation using the lab the way legitimate
+  # users do (web shopping, admin SSH, app database queries), so attacks can
+  # be compared with normal traffic. Same tool image as the attacker, but a
+  # different address and only legitimate credentials. On demand:
+  #   docker compose --profile normal run --rm normal-user /normal/normal-activity.sh
+  normal-user:
+    image: home-soc-lab/attacker:latest
+    hostname: workstation
+    profiles: ["normal"]
+    environment:
+      DURATION: ${NORMAL_DURATION:-600}
+      ADMIN_SSH_USER: ${ADMIN_SSH_USER:?set ADMIN_SSH_USER in .env}
+      ADMIN_SSH_PASSWORD: ${ADMIN_SSH_PASSWORD:?set ADMIN_SSH_PASSWORD in .env}
+      SHOP_CUSTOMER_EMAIL: ${SHOP_CUSTOMER_EMAIL:?set SHOP_CUSTOMER_EMAIL in .env}
+      SHOP_CUSTOMER_PASSWORD: ${SHOP_CUSTOMER_PASSWORD:?set SHOP_CUSTOMER_PASSWORD in .env}
+      DB_USER: ${VICTIM_DB_USER}
+      DB_PASSWORD: ${VICTIM_DB_PASSWORD}
+      HOST_UID: ${HOST_UID:-1000}
+      HOST_GID: ${HOST_GID:-1000}
+    volumes:
+      - ./normal:/normal:ro
+      - ./attacks/output:/output
+    networks:
+      lab:
+        ipv4_address: ${NORMAL_USER_IP:?set NORMAL_USER_IP in .env}
 
 networks:
   lab:

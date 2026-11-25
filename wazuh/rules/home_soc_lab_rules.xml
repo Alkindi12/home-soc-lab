@@ -188,11 +188,35 @@
     <group>authentication_success,brute_force,</group>
   </rule>
 
-  <!-- Attack 5: database brute force. Each failure is stock rule 50106
-       (decoded by wazuh/decoders/mariadb_decoders.xml); nothing stock
-       correlates them. -->
+  <!-- Attack 5: database brute force. A MariaDB failed login reaches Wazuh
+       on one of two paths, depending on the hour it was logged (see
+       wazuh/decoders/mariadb_decoders.xml):
+         00:00-09:59  decoder mysql_log            -> stock rule 50106 -> 100252
+         10:00-23:59  decoder windows-date-format  -> 100251
+       Both carry the group "mariadb_auth_failure", which 100250 counts.
+       Before this, 100250 counted only 50106 and silently missed every
+       attack after 10:00. -->
+  <rule id="100251" level="9">
+    <decoded_as>windows-date-format</decoded_as>
+    <match>Access denied for user</match>
+    <description>MariaDB: authentication failure for $(srcuser) from $(srcip)</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_failed,mariadb_auth_failure,</group>
+  </rule>
+
+  <rule id="100252" level="9">
+    <if_sid>50106</if_sid>
+    <description>MariaDB: authentication failure for $(srcuser) from $(srcip)</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>authentication_failed,mariadb_auth_failure,</group>
+  </rule>
+
   <rule id="100250" level="12" frequency="8" timeframe="60" ignore="120">
-    <if_matched_sid>50106</if_matched_sid>
+    <if_matched_group>mariadb_auth_failure</if_matched_group>
     <same_source_ip />
     <description>Database brute force: 8+ failed MariaDB logins from $(srcip) in 60s (last user: $(srcuser))</description>
     <mitre>

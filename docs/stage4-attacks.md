@@ -41,7 +41,8 @@ own time window, and writes `attacks/output/timeline.txt`.
 | 100230 / 100232 / 100233 | 10 / 6 / 12 | T1190 | sqlmap fingerprint / SQLi signature per request / SQLi campaign (network) |
 | 100231 | 12 | T1190 | SQLi campaign (web log), corrects stock 31152's T1055 mapping |
 | 100240 | 13 | T1110.001, T1078 | SSH brute force followed by a successful login |
-| 100250 | 12 | T1110.001 | MariaDB brute force |
+| 100250 | 12 | T1110.001 | MariaDB brute force (counts group `mariadb_auth_failure`) |
+| 100251 / 100252 | 9 | T1110.001 | MariaDB failed login, two-digit / single-digit hour |
 | 100260 | 12 | T1098.004 | `authorized_keys` created or changed |
 | 100261 | 12 | T1548.003, T1003.008 | sudo used to read a credential file |
 
@@ -70,9 +71,22 @@ running the real attack and checking the alerts.
 | Wazuh tries **sibling rules highest level first** | a level-6 "SQLi per request" rule never beat the level-10 "severity 1" rule | specific Suricata rules are children of the severity rules |
 | Web rules under `if_sid 31100` | never evaluated: requests land on stock children of 31100 first | `if_group` / `if_matched_group accesslog` |
 | FIM rule with `<field name="file">` or `syscheck.path` | never matched | `<match>/.ssh/authorized_keys</match>` |
+| MariaDB lines after 10:00 match stock `windows-date-format` | DB brute force invisible every day from 10:00 (found by the normal-vs-attack run) | second decoder path + rules 100251/100252 |
 | OpenSSH 10 `PerSourcePenalties` | hydra blocked after ~30 attempts | disabled on the victim (documented as the real mitigation) |
 | sqlmap "not injectable" | attack 3 failed at default settings | prefix `'))`, empty base value, `--string` |
 | Juice Shop answers 200 for unknown paths | gobuster "found" everything; stock 4xx scan rule never fires | exclude the fallback page length; user-agent rules |
+
+## Normal activity baseline
+
+`normal-user` (`172.30.0.50`, Compose profile `normal`) uses the lab the way
+legitimate users do: shopping, a customer login, an admin (`alice`, strong
+generated password) over SSH with sudo, the app querying the database, the
+odd mistyped password, and one legitimate `authorized_keys` change. See
+[reports/normal-vs-attack.md](../reports/normal-vs-attack.md).
+
+```bash
+docker compose --profile normal run --rm normal-user /normal/normal-activity.sh   # 10 min
+```
 
 ## Known limitations
 

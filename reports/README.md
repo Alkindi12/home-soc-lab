@@ -18,6 +18,14 @@ Before the custom rules, attacks 1 and 2 had **no** detection of the
 activity itself, attack 5 had no correlation, attack 6 produced only
 level 3–5 alerts, and every Suricata alert was level 3.
 
+## Normal activity vs attack
+
+[normal-vs-attack.md](normal-vs-attack.md): 10 minutes of legitimate use as
+a baseline, then the attacks with normal traffic still running. What normal
+looks like in the SIEM, how the attack stands out, a legitimate action that
+fires the same rule as an attack, and a triage walk-through with dashboard
+screenshots.
+
 ## Attack chain
 
 ```

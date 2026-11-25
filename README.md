@@ -81,6 +81,16 @@ docker compose --profile attack run --rm attacker /attacks/run-all.sh   # all si
 Results per attack, with MITRE ATT&CK mapping, the alerts produced, false
 positives and analyst response: [reports/](reports/README.md).
 
+To compare with legitimate use, a `normal-user` client generates a baseline
+of normal activity (web shopping, admin SSH, database queries):
+
+```bash
+docker compose --profile normal run --rm normal-user /normal/normal-activity.sh
+```
+
+How the two look side by side, and how an analyst separates them:
+[reports/normal-vs-attack.md](reports/normal-vs-attack.md).
+
 ## Repository layout
 
 | Path           | Contents |
@@ -89,6 +99,7 @@ positives and analyst response: [reports/](reports/README.md).
 | `suricata/`    | Suricata configuration, local rules and the `nids-sensor` agent image |
 | `attacker/`    | Attacker image (Debian tools, lab network only) |
 | `attacks/`     | Attack scripts and wordlists |
+| `normal/`      | Normal-activity (baseline) script |
 | `reports/`     | Per-attack detection write-ups |
 | `wazuh/config/` | Wazuh manager, indexer and dashboard configuration |
 | `wazuh/decoders/` | Custom Wazuh decoders |

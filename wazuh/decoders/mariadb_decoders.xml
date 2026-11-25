@@ -20,3 +20,20 @@
   <regex type="pcre2">Access denied for user '([^']*)'@'([^']*)'</regex>
   <order>srcuser,srcip</order>
 </decoder>
+
+<!--
+  Two-digit hours (10:00-23:59). MariaDB pads single-digit hours with a
+  space ("2026-11-25  7:51:16"), but from 10:00 a line reads
+  "2026-11-25 11:57:35 ...", which ALSO matches Wazuh's stock
+  "windows-date-format" decoder (^YYYY-MM-DD HH:MM:SS). That one is tried
+  first, so the sibling above never sees those lines: database detection
+  silently stopped every day at 10:00 until this was added (found in
+  Stage 4). This child of windows-date-format picks the MariaDB lines back
+  up; rule 100251 alerts on them.
+-->
+<decoder name="mariadb-access-denied-2digit-hour">
+  <parent>windows-date-format</parent>
+  <prematch type="pcre2" offset="after_parent">^\d+ \[Warning\] Access denied for user </prematch>
+  <regex type="pcre2">Access denied for user '([^']*)'@'([^']*)'</regex>
+  <order>srcuser,srcip</order>
+</decoder>

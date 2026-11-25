@@ -11,6 +11,16 @@ if ! id "$VICTIM_SSH_USER" >/dev/null 2>&1; then
 fi
 echo "${VICTIM_SSH_USER}:${VICTIM_SSH_PASSWORD}" | chpasswd
 
+# Legitimate administrator with a strong generated password (normal
+# activity baseline). Optional: only created when set in .env.
+if [ -n "${ADMIN_SSH_USER:-}" ] && [ -n "${ADMIN_SSH_PASSWORD:-}" ]; then
+  if ! id "$ADMIN_SSH_USER" >/dev/null 2>&1; then
+    useradd -m -s /bin/bash "$ADMIN_SSH_USER"
+    usermod -aG sudo "$ADMIN_SSH_USER"
+  fi
+  echo "${ADMIN_SSH_USER}:${ADMIN_SSH_PASSWORD}" | chpasswd
+fi
+
 [ -f /etc/ssh/ssh_host_ed25519_key ] || ssh-keygen -A
 
 rsyslogd
