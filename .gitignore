@@ -1,0 +1,28 @@
+# Secrets: real values live in .env only (copy from .env.example)
+.env
+*.env
+!.env.example
+
+# Generated TLS certificates and keys (created in Stage 1, never commit)
+wazuh/config/wazuh_indexer_ssl_certs/
+*.pem
+*.key
+*.crt
+*.p12
+
+# Runtime data and logs
+suricata/logs/
+*.pcap
+*.pcapng
+*.log
+
+# Attack tool output (may contain dumped lab data)
+attacks/output/
+sqlmap-output/
+hydra.restore
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store

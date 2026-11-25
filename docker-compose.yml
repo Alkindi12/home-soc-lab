@@ -1,0 +1,8 @@
+# Home SOC Lab
+# Services are added stage by stage:
+#   Stage 1: wazuh.manager, wazuh.indexer, wazuh.dashboard
+#   Stage 2: victim containers (Juice Shop, SSH server, database) with Wazuh agents
+#   Stage 3: Suricata on the lab network
+name: home-soc-lab
+
+services: {}
