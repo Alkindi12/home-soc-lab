@@ -9,6 +9,17 @@ Every attack has custom detection rules mapped to **MITRE ATT&CK**, measured
 against real alerts, and a write-up covering false positives and analyst
 response.
 
+**At a glance**
+
+- **What it is:** a SIEM + IDS lab with 3 victims, 1 attacker and 1 normal user, all in Docker.
+- **What it shows:** 6 attacks, 8 MITRE ATT&CK techniques, **all detected** within 1–9 seconds.
+- **What you need:** a Linux machine with Docker, 8 GB RAM, about 30 minutes for the first run.
+
+**Contents:** [Results](#results) · [Architecture](#architecture) ·
+[Quick start](#quick-start) · [Troubleshooting](#troubleshooting) ·
+[Documentation](#documentation) · [What building it taught](#what-building-it-taught) ·
+[Known limitations](#known-limitations)
+
 ![Detected techniques in the Wazuh MITRE ATT&CK view](docs/screenshots/06-mitre-framework.jpg)
 
 *Wazuh's MITRE ATT&CK view during the attack phase. **Red:** the eight techniques the six attacks map to, all detected. **Orange:** T1055, where a stock Wazuh rule wrongly files SQL injection under process injection; the custom rules map it to T1190.*
@@ -23,6 +34,10 @@ response.
 | 4 | [SSH brute force → login](reports/04-ssh-brute-force.md) (hydra) | T1110.001, T1078 | 5763 → 100240 | 10 → 13 | 9 s |
 | 5 | [Database brute force](reports/05-database-brute-force.md) (hydra) | T1110.001 | 100250 | 12 | 2 s |
 | 6 | [Persistence and privilege escalation](reports/06-persistence-privesc.md) | T1098.004, T1548.003, T1003.008 | 100260, 100261 | 12 | 1–2 s |
+
+*Detected by:* the Wazuh rule IDs that fire (100xxx are this lab's custom
+rules). *Level:* Wazuh alert severity, 0–15; 12 and above is what an analyst
+looks at first.
 
 Before the custom rules, attacks 1 and 2 were not detected at all, attack 5
 had no correlation, attack 6 raised only level 3–5 alerts, and Suricata put
@@ -84,6 +99,89 @@ flowchart LR
 | MariaDB | 11.4 LTS | Vulnerable database |
 | Debian | 13 (trixie) | Base for victims, sensor, attacker, normal user |
 
+## Quick start
+
+**Requirements:** Linux with Docker Engine and Compose v2, 8 GB RAM (the lab
+uses about 5 GB), 4 CPUs, 40 GB free disk.
+
+### Step 1: Prepare the host
+
+The indexer needs `vm.max_map_count` ≥ 262144:
+
+```bash
+sysctl vm.max_map_count     # if lower:
+echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-wazuh.conf && sudo sysctl --system
+```
+
+### Step 2: Clone and set up
+
+```bash
+git clone https://github.com/Alkindi12/home-soc-lab.git && cd home-soc-lab
+./scripts/preflight.sh      # read-only check: RAM, CPUs, disk, max_map_count, Docker
+./scripts/setup.sh          # creates .env with random passwords, config, TLS certificates
+```
+
+### Step 3: Start the lab
+
+```bash
+docker compose build        # victim and sensor images
+docker compose up -d        # first start: 2-3 minutes
+docker compose ps           # every service should be "running" or "healthy"
+```
+
+### Step 4: Log in to the dashboard
+
+Open <https://localhost> (self-signed certificate: accept the browser
+warning once). The user is `admin`; the password is generated, read it with:
+
+```bash
+grep ^INDEXER_PASSWORD= .env
+```
+
+### Step 5: Generate normal activity and attacks
+
+```bash
+docker compose --profile normal run --rm normal-user /normal/normal-activity.sh  # 10 min of normal use
+docker compose --profile attack build attacker
+docker compose --profile attack run --rm attacker /attacks/run-all.sh          # six attacks, ~10 min
+```
+
+Each attack can also run on its own, for example
+`docker compose --profile attack run --rm attacker /attacks/01-port-scan.sh`.
+
+### Step 6: Investigate the alerts
+
+In the dashboard open **Threat Hunting → Events** and search:
+
+| Query | Shows |
+|-------|-------|
+| `rule.groups:home_soc_lab` | Only this lab's custom detections |
+| `rule.level >= 12` | The alerts an analyst picks up first |
+| `data.srcip:172.30.0.100 or data.src_ip:172.30.0.100` | Everything the attacker did (host and Suricata alerts) |
+
+Compare what you find with the [attack reports](reports/README.md).
+
+### Step 7: Stop and clean up
+
+```bash
+docker compose stop         # pause, keep everything
+docker compose down         # remove containers, keep alerts and Wazuh data
+docker compose down -v      # remove everything, including all alerts
+```
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| Dashboard says "server is not ready yet" | The indexer is still starting: wait 1–2 minutes. |
+| Indexer keeps restarting | `vm.max_map_count` is too low: see Step 1. |
+| A rule or config change has no effect | `docker compose up -d --force-recreate wazuh.manager` (a plain restart keeps the old config). |
+| Login fails after changing `.env` | Passwords are set on first start only. Reset: `docker compose down -v`, `./scripts/setup.sh`, `docker compose up -d`. |
+| Dashboard stuck, logs show `Unable to retrieve version information` | Shell variables override `.env`. Open a fresh shell and run `docker compose up -d --force-recreate`. |
+| A victim shows no events | `docker compose exec <victim> tail /var/ossec/logs/ossec.log`; on `Duplicate agent name`, recreate the manager, then the victim. |
+
+More detail in each stage's documentation below.
+
 ## Safety
 
 - Attacks target only lab containers on an **internal** Docker network: no
@@ -98,46 +196,6 @@ flowchart LR
   `scripts/setup.sh` generates them into `.env` (never committed): strong
   random values for Wazuh, and for the victims a deliberately weak one
   picked from the attack wordlist.
-
-## Quick start
-
-Requirements: Linux with Docker Engine and Compose v2, 8 GB RAM (the lab uses
-about 5 GB), 4 CPUs, 40 GB free disk, and `vm.max_map_count` ≥ 262144 for the
-indexer:
-
-```bash
-sysctl vm.max_map_count     # if lower:
-echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-wazuh.conf && sudo sysctl --system
-```
-
-Then:
-
-```bash
-git clone <this-repo-url> home-soc-lab && cd home-soc-lab
-./scripts/preflight.sh      # read-only host check
-./scripts/setup.sh          # .env with random passwords, config, TLS certificates
-docker compose build        # victim and sensor images
-docker compose up -d        # first start: 2-3 minutes
-```
-
-Open <https://localhost> (self-signed certificate, the browser warns once)
-and log in as `admin` with the `INDEXER_PASSWORD` from `.env`:
-
-```bash
-grep ^INDEXER_PASSWORD= .env
-```
-
-### Run the attacks and the baseline
-
-```bash
-docker compose --profile attack build attacker
-docker compose --profile attack run --rm attacker /attacks/run-all.sh          # six attacks, ~10 min
-docker compose --profile normal run --rm normal-user /normal/normal-activity.sh  # 10 min of normal use
-```
-
-In the dashboard: Threat Hunting → Events, query `rule.groups:home_soc_lab`
-for the custom detections, or `rule.level >= 12` for what an analyst picks
-up first.
 
 ## Documentation
 
@@ -194,7 +252,7 @@ caught, all documented with their fixes:
 - Slow attacks stay under the frequency thresholds.
 - The Wazuh manager API and enrollment port are reachable from the lab
   network (agents need them); attacks never target them.
-- Built and tested on one host (Kali Linux, 7.5 GiB RAM). Ten minutes of one
+- Built and tested on one Linux laptop with 8 GB RAM. Ten minutes of one
   scripted user is a small baseline.
 
 ## Project stages

@@ -26,8 +26,10 @@ on an isolated Docker network.
 | `juice-shop` | `bkimminich/juice-shop:v20.4.0` | SQL injection, XSS, broken auth, ... | none (distroless image; nginx in front records every request) |
 | `victim-db` | MariaDB 11.4 LTS | Weak root and app passwords | MariaDB error log (failed logins) |
 
-The weak victim credentials are in `.env.example` on purpose: they are the
-targets of the brute-force attacks and exist only inside the lab network.
+The victim passwords are weak on purpose: they are the targets of the
+brute-force attacks. `scripts/setup.sh` picks them at random from the attack
+wordlist and writes them to `.env` (never committed), so no password is
+stored in the repository. They exist only inside the lab network.
 
 ## Isolation
 
